@@ -399,22 +399,22 @@
   <div class="header-top">
     <div>
       <h1>医療文書 AI アシスト</h1>
-      <p>本間病院　在宅診療部</p>
+      <p>本間病院 在宅診療部</p>
     </div>
     <div class="privacy-badge">AI学習なし・24h消去</div>
   </div>
 </div>
 <!-- API Key Setup -->
 <div class="api-setup" id="api-setup">
-  <h3>初回設定：APIキーを入力</h3>
-  <p style="font-size:11px;color:var(--amber);">Anthropic ConsoleからAPIキー（sk-ant-...）を取得し、以下に入力してください。キーはこの端末のみに保存されます。</p>
+  <h3>初回設定:APIキーを入力</h3>
+  <p style="font-size:11px;color:var(--amber);">Anthropic ConsoleからAPIキー(sk-ant-...)を取得し、以下に入力してください。キーはこの端末のみに保存されます。</p>
   <div class="api-input-row">
     <input type="password" class="api-input" id="api-key-input" placeholder="sk-ant-api03-..." autocomplete="off">
     <button class="btn-save-api" onclick="saveApiKey()">保存</button>
   </div>
 </div>
 <div class="api-saved" id="api-saved">
-  APIキー設定済み　<span style="font-size:10px;color:var(--green);cursor:pointer;text-decoration:underline;" onclick="resetApiKey()">リセット</span>
+  APIキー設定済み <span style="font-size:10px;color:var(--green);cursor:pointer;text-decoration:underline;" onclick="resetApiKey()">リセット</span>
 </div>
 <div class="main">
   <!-- Privacy Notice -->
@@ -422,7 +422,7 @@
     <h4>プライバシー・セキュリティ</h4>
     <ul>
       <li>取り込んだデータ・QRコードは24時間で自動消去</li>
-      <li>AIはこのデータを学習に使用しません（API利用規約による）</li>
+      <li>AIはこのデータを学習に使用しません(API利用規約による)</li>
       <li>患者氏名・IDは入力しないでください</li>
       <li>カルテ端末への接続・改変は一切ありません</li>
     </ul>
@@ -445,9 +445,9 @@
       <div class="card">
         <div class="card-label">音声入力の使い方</div>
         <div style="font-size:11px;color:var(--gray-600);line-height:1.7;margin-bottom:10px;">
-          ① iPhoneキーボードのマイクアイコンをタップして音声入力<br>
-          ② または録音内容をテキストで直接入力<br>
-          ③ 患者氏名・IDは入力しないでください
+          1 iPhoneキーボードのマイクアイコンをタップして音声入力<br>
+          2 または録音内容をテキストで直接入力<br>
+          3 患者氏名・IDは入力しないでください
         </div>
         <textarea id="text-input" placeholder="ここに音声入力またはテキストを貼り付けてください..." style="width:100%;min-height:120px;border:1.5px solid var(--gray-200);border-radius:var(--radius-sm);padding:10px 12px;font-size:13px;font-family:'Noto Sans JP',sans-serif;color:var(--gray-800);resize:vertical;outline:none;line-height:1.7;"></textarea>
       </div>
@@ -469,10 +469,10 @@
     <div class="card">
       <div class="card-label">出力テンプレート</div>
       <select class="template-select" id="template-select">
-        <option value="ic">IC記録（病状説明）</option>
+        <option value="ic">IC記録(病状説明)</option>
         <option value="referral_in">紹介状受け取り → カルテ記載</option>
         <option value="referral_out">カルテ内容 → 紹介状作成</option>
-        <option value="soap">SOAP記録（診察）</option>
+        <option value="soap">SOAP記録(診察)</option>
         <option value="nursing_summary">看護サマリ</option>
         <option value="discharge_summary">退院時サマリ</option>
       </select>
@@ -530,13 +530,13 @@ const API_KEY_STORAGE = 'medical_ai_apikey';
 const EXPIRY_HOURS = 24;
 const TEMPLATES = {
   ic: {
-    label: 'IC記録（病状説明）',
-    prompt: `以下の音声または画像から、病状説明（インフォームドコンセント）のカルテ記録を作成してください。
+    label: 'IC記録(病状説明)',
+    prompt: `以下の音声または画像から、病状説明(インフォームドコンセント)のカルテ記録を作成してください。
 患者氏名・IDは含めないでください。以下の形式で出力してください。
 【説明内容】
 【患者・家族の反応・質問】
 【同席者】
-【説明日時】　　年　月　日　　時　分
+【説明日時】  年 月 日  時 分
 【担当医師】
 【補足事項】`
   },
@@ -550,14 +550,14 @@ const TEMPLATES = {
 【既往歴】
 【内服薬】
 【アレルギー】
-【検査結果（主なもの）】
+【検査結果(主なもの)】
 【紹介医のコメント】`
   },
   referral_out: {
     label: 'カルテ内容 → 紹介状作成',
     prompt: `以下のカルテ画像・メモから、紹介状の下書きを作成してください。
 患者情報欄は【患者情報】として空欄にしてください。以下の形式で出力してください。
-拝啓　先生御侍史
+拝啓 先生御侍史
 【紹介目的】
 【現病歴】
 【既往歴】
@@ -568,13 +568,13 @@ const TEMPLATES = {
 ご高診よろしくお願い申し上げます。`
   },
   soap: {
-    label: 'SOAP記録（診察）',
+    label: 'SOAP記録(診察)',
     prompt: `以下の音声または画像から、診察記録をSOAP形式でまとめてください。
 患者氏名・IDは含めないでください。以下の形式で出力してください。
-S（主観的情報）：
-O（客観的情報）：
-A（評価・アセスメント）：
-P（計画）：`
+S(主観的情報):
+O(客観的情報):
+A(評価・アセスメント):
+P(計画):`
   },
   nursing_summary: {
     label: '看護サマリ',
@@ -619,7 +619,7 @@ function saveApiKey() {
   document.getElementById('api-saved').style.display = 'flex';
 }
 function resetApiKey() {
-  if (!confirm('APIキーをリセットしますか？')) return;
+  if (!confirm('APIキーをリセットしますか?')) return;
   localStorage.removeItem(API_KEY_STORAGE);
   document.getElementById('api-key-input').value = '';
   document.getElementById('api-setup').style.display = 'block';
@@ -730,7 +730,7 @@ async function runAI() {
     document.getElementById('result-card').classList.add('visible');
     saveHistory(template.label, resultText);
   } catch (e) {
-    showError('処理中にエラーが発生しました：' + e.message);
+    showError('処理中にエラーが発生しました:' + e.message);
   } finally {
     btn.classList.remove('loading');
     btn.disabled = false;
@@ -749,7 +749,7 @@ function generateQR() {
   const text = resultText;
   if (!text) return;
   if (text.length > 2500) {
-    showError('テキストが長すぎます（上限約2,500文字）。テキストをコピーして分割してご使用ください。');
+    showError('テキストが長すぎます(上限約2,500文字)。テキストをコピーして分割してご使用ください。');
     return;
   }
   const container = document.getElementById('qr-canvas');
