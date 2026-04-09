@@ -754,22 +754,26 @@ function generateQR() {
   }
   const container = document.getElementById('qr-canvas');
   container.innerHTML = '';
-  const encoded = encodeURIComponent(text);
-  const url = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&ecc=M&data=${encoded}`;
-  const img = document.createElement('img');
-  img.src = url;
-  img.width = 200;
-  img.height = 200;
-  img.style.borderRadius = '4px';
-  img.onerror = () => {
-    container.innerHTML = '<div style="color:var(--red);font-size:12px;padding:10px;">QR生成に失敗しました。テキストをコピーして外部QRサイトをご利用ください。</div>';
-  };
-  container.appendChild(img);
+  const canvas = document.createElement('canvas');
+  container.appendChild(canvas);
+  QRious ? renderQR(canvas, text) : loadQRious(canvas, text);
   document.getElementById('qr-section').classList.add('visible');
   qrExpiry = Date.now() + 24 * 60 * 60 * 1000;
   updateQRTimer();
   if (qrTimer) clearInterval(qrTimer);
   qrTimer = setInterval(updateQRTimer, 60000);
+}
+function renderQR(canvas, text) {
+  new QRious({ element: canvas, value: text, size: 220, level: 'M' });
+}
+function loadQRious(canvas, text) {
+  const s = document.createElement('script');
+  s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js';
+  s.onload = () => renderQR(canvas, text);
+  s.onerror = () => {
+    document.getElementById('qr-canvas').innerHTML = '<div style="color:var(--red);font-size:12px;padding:10px;">QR生成に失敗しました。「テキストをコピー」してカルテに貼り付けてください。</div>';
+  };
+  document.head.appendChild(s);
 }
 function updateQRTimer() {
   if (!qrExpiry) return;
