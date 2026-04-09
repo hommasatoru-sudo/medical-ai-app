@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>医療文書 AI アシスト</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap');
   :root {
@@ -750,17 +749,22 @@ function generateQR() {
   const text = resultText;
   if (!text) return;
   if (text.length > 2500) {
-    showError('テキストが長すぎてQRコードに変換できません（上限約2,500文字）。テキストをコピーして分割してご使用ください。');
+    showError('テキストが長すぎます（上限約2,500文字）。テキストをコピーして分割してご使用ください。');
     return;
   }
   const container = document.getElementById('qr-canvas');
   container.innerHTML = '';
-  new QRCode(container, {
-    text: text,
-    width: 200,
-    height: 200,
-    correctLevel: QRCode.CorrectLevel.M
-  });
+  const encoded = encodeURIComponent(text);
+  const url = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&ecc=M&data=${encoded}`;
+  const img = document.createElement('img');
+  img.src = url;
+  img.width = 200;
+  img.height = 200;
+  img.style.borderRadius = '4px';
+  img.onerror = () => {
+    container.innerHTML = '<div style="color:var(--red);font-size:12px;padding:10px;">QR生成に失敗しました。テキストをコピーして外部QRサイトをご利用ください。</div>';
+  };
+  container.appendChild(img);
   document.getElementById('qr-section').classList.add('visible');
   qrExpiry = Date.now() + 24 * 60 * 60 * 1000;
   updateQRTimer();
