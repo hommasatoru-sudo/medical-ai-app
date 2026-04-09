@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>医療文書 AI アシスト</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --blue: #1a4f7a;
+    --blue-light: #e8f2fa;
+    --blue-mid: #3a7bbf;
+    --green: #1a6b3a;
+    --green-light: #e8f7ee;
+    --amber: #7a4f00;
+    --amber-light: #fff8e8;
+    --red: #7a1a1a;
+    --red-light: #fae8e8;
+    --gray-50: #f8f9fa;
+    --gray-100: #f0f2f4;
+    --gray-200: #e2e6ea;
+    --gray-400: #9aa3ad;
+    --gray-600: #5a6470;
+    --gray-800: #2a3038;
+    --white: #ffffff;
+    --radius: 10px;
+    --radius-sm: 6px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Noto Sans JP', sans-serif;
+    background: var(--gray-50);
+    color: var(--gray-800);
+    min-height: 100vh;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  /* Header */
+  .header {
+    background: var(--blue);
+    color: white;
+    padding: 14px 16px 12px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    border-bottom: 2px solid var(--blue-mid);
+  }
+  .header-top { display: flex; align-items: center; justify-content: space-between; }
+  .header h1 { font-size: 16px; font-weight: 700; letter-spacing: 0.02em; }
+  .header p { font-size: 11px; color: rgba(255,255,255,0.7); margin-top: 2px; }
+  .privacy-badge {
+    display: flex; align-items: center; gap: 5px;
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 20px;
+    padding: 4px 10px;
+    font-size: 10px;
+    color: rgba(255,255,255,0.9);
+  }
+  .privacy-badge::before {
+    content: '';
+    display: inline-block;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: #4ade80;
+  }
+
+  /* API Key Setup */
+  .api-setup {
+    background: var(--amber-light);
+    border: 1px solid #f0c060;
+    border-radius: var(--radius);
+    padding: 14px;
+    margin: 12px 16px;
+  }
+  .api-setup h3 { font-size: 13px; font-weight: 700; color: var(--amber); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+  .api-setup h3::before { content: '⚙'; font-size: 14px; }
+  .api-input-row { display: flex; gap: 8px; margin-top: 8px; }
+  .api-input {
+    flex: 1;
+    border: 1px solid #d4a800;
+    border-radius: var(--radius-sm);
+    padding: 8px 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--gray-800);
+    background: white;
+    outline: none;
+  }
+  .api-input:focus { border-color: var(--blue-mid); }
+  .btn-save-api {
+    background: var(--blue);
+    color: white;
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 8px 14px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    font-family: 'Noto Sans JP', sans-serif;
+  }
+  .api-saved {
+    display: none;
+    background: var(--green-light);
+    border: 1px solid #60c080;
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    margin: 12px 16px;
+    font-size: 12px;
+    color: var(--green);
+    font-weight: 500;
+    align-items: center;
+    gap: 8px;
+  }
+  .api-saved::before { content: '✓'; font-size: 14px; }
+
+  /* Main area */
+  .main { padding: 0 16px 100px; }
+
+  /* Mode selector */
+  .mode-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin: 14px 0;
+  }
+  .mode-tab {
+    border: 1.5px solid var(--gray-200);
+    border-radius: var(--radius);
+    padding: 12px 8px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--gray-600);
+    background: white;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .mode-tab.active {
+    border-color: var(--blue-mid);
+    background: var(--blue-light);
+    color: var(--blue);
+  }
+  .mode-icon { font-size: 22px; display: block; margin-bottom: 4px; }
+
+  /* Card */
+  .card {
+    background: white;
+    border-radius: var(--radius);
+    border: 1px solid var(--gray-200);
+    padding: 14px;
+    margin-bottom: 12px;
+  }
+  .card-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--gray-600);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 8px;
+  }
+
+  /* Upload zone */
+  .upload-zone {
+    border: 2px dashed var(--gray-200);
+    border-radius: var(--radius);
+    padding: 24px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.15s;
+    background: var(--gray-50);
+  }
+  .upload-zone:hover { border-color: var(--blue-mid); background: var(--blue-light); }
+  .upload-zone.dragover { border-color: var(--blue-mid); background: var(--blue-light); }
+  .upload-zone.has-file { border-color: var(--green); background: var(--green-light); border-style: solid; }
+  .upload-icon { font-size: 32px; margin-bottom: 8px; }
+  .upload-text { font-size: 13px; font-weight: 500; color: var(--gray-600); }
+  .upload-sub { font-size: 11px; color: var(--gray-400); margin-top: 4px; }
+  .upload-filename { font-size: 12px; color: var(--green); font-weight: 500; margin-top: 6px; }
+  #file-input { display: none; }
+
+  /* Template select */
+  .template-select {
+    width: 100%;
+    border: 1.5px solid var(--gray-200);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    font-size: 13px;
+    color: var(--gray-800);
+    background: white;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%239aa3ad' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    cursor: pointer;
+    font-family: 'Noto Sans JP', sans-serif;
+    outline: none;
+  }
+  .template-select:focus { border-color: var(--blue-mid); }
+
+  /* Run button */
+  .btn-run {
+    width: 100%;
+    background: var(--blue);
+    color: white;
+    border: none;
+    border-radius: var(--radius);
+    padding: 14px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    margin: 4px 0 12px;
+    font-family: 'Noto Sans JP', sans-serif;
+    transition: background 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .btn-run:hover { background: #154069; }
+  .btn-run:disabled { background: var(--gray-400); cursor: not-allowed; }
+  .btn-run .spinner {
+    width: 16px; height: 16px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    display: none;
+  }
+  .btn-run.loading .spinner { display: block; }
+  .btn-run.loading .btn-label { display: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Result */
+  .result-card { display: none; }
+  .result-card.visible { display: block; }
+  .result-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .result-badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 9px;
+    border-radius: 20px;
+    background: var(--green-light);
+    color: var(--green);
+  }
+  .result-text {
+    background: var(--gray-50);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-sm);
+    padding: 12px;
+    font-size: 12px;
+    line-height: 1.8;
+    color: var(--gray-800);
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 220px;
+    overflow-y: auto;
+    margin-bottom: 10px;
+  }
+  .action-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+  .btn-action {
+    border: 1.5px solid var(--gray-200);
+    border-radius: var(--radius-sm);
+    padding: 10px 8px;
+    font-size: 12px;
+    font-weight: 500;
+    background: white;
+    color: var(--gray-700);
+    cursor: pointer;
+    font-family: 'Noto Sans JP', sans-serif;
+    transition: all 0.15s;
+  }
+  .btn-action:hover { background: var(--gray-100); }
+  .btn-action.primary {
+    background: var(--blue-light);
+    border-color: var(--blue-mid);
+    color: var(--blue);
+  }
+  .btn-action.primary:hover { background: #d0e8f8; }
+  .btn-action.copied {
+    background: var(--green-light);
+    border-color: #60c080;
+    color: var(--green);
+  }
+
+  /* QR */
+  .qr-section { display: none; }
+  .qr-section.visible { display: block; }
+  .qr-box {
+    background: white;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius);
+    padding: 20px;
+    text-align: center;
+  }
+  #qr-canvas { display: flex; justify-content: center; margin-bottom: 12px; }
+  #qr-canvas img, #qr-canvas canvas { border-radius: 4px; }
+  .qr-instruction {
+    font-size: 12px;
+    color: var(--gray-600);
+    background: var(--blue-light);
+    border-radius: var(--radius-sm);
+    padding: 8px 12px;
+    margin-top: 8px;
+  }
+  .qr-timer {
+    font-size: 11px;
+    color: var(--red);
+    margin-top: 8px;
+    font-weight: 500;
+  }
+
+  /* Privacy notice */
+  .privacy-notice {
+    background: var(--gray-100);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    margin-bottom: 12px;
+  }
+  .privacy-notice h4 {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--gray-600);
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .privacy-notice h4::before { content: '🔒'; font-size: 12px; }
+  .privacy-notice ul {
+    list-style: none;
+    padding: 0;
+  }
+  .privacy-notice li {
+    font-size: 11px;
+    color: var(--gray-600);
+    padding: 2px 0;
+    padding-left: 14px;
+    position: relative;
+  }
+  .privacy-notice li::before {
+    content: '✓';
+    position: absolute;
+    left: 0;
+    color: var(--green);
+    font-weight: 700;
+  }
+
+  /* Error */
+  .error-box {
+    display: none;
+    background: var(--red-light);
+    border: 1px solid #f0a0a0;
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    font-size: 12px;
+    color: var(--red);
+    margin-bottom: 10px;
+  }
+  .error-box.visible { display: block; }
+
+  /* Bottom nav */
+  .bottom-nav {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: white;
+    border-top: 1px solid var(--gray-200);
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    padding: 8px 0 max(8px, env(safe-area-inset-bottom));
+  }
+  .nav-item {
+    text-align: center;
+    font-size: 10px;
+    color: var(--gray-400);
+    cursor: pointer;
+    padding: 4px;
+  }
+  .nav-item.active { color: var(--blue); }
+  .nav-icon { font-size: 20px; display: block; margin-bottom: 2px; }
+
+  /* History */
+  .history-section { display: none; }
+  .history-section.visible { display: block; }
+  .history-item {
+    background: white;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    cursor: pointer;
+  }
+  .history-item:hover { border-color: var(--blue-mid); }
+  .history-meta { font-size: 10px; color: var(--gray-400); margin-bottom: 4px; }
+  .history-template { font-size: 12px; font-weight: 500; color: var(--blue); }
+  .history-preview { font-size: 11px; color: var(--gray-600); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .history-expired { color: var(--red); font-size: 10px; }
+  .empty-history { text-align: center; padding: 40px 20px; color: var(--gray-400); font-size: 13px; }
+
+  /* Section visibility */
+  .section-main { display: block; }
+  .section-main.hidden { display: none; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-top">
+    <div>
+      <h1>医療文書 AI アシスト</h1>
+      <p>本間病院　在宅診療部</p>
+    </div>
+    <div class="privacy-badge">AI学習なし・24h消去</div>
+  </div>
+</div>
+
+<!-- API Key Setup -->
+<div class="api-setup" id="api-setup">
+  <h3>初回設定：APIキーを入力</h3>
+  <p style="font-size:11px;color:var(--amber);">Anthropic ConsoleからAPIキー（sk-ant-...）を取得し、以下に入力してください。キーはこの端末のみに保存されます。</p>
+  <div class="api-input-row">
+    <input type="password" class="api-input" id="api-key-input" placeholder="sk-ant-api03-..." autocomplete="off">
+    <button class="btn-save-api" onclick="saveApiKey()">保存</button>
+  </div>
+</div>
+<div class="api-saved" id="api-saved">
+  APIキー設定済み　<span style="font-size:10px;color:var(--green);cursor:pointer;text-decoration:underline;" onclick="resetApiKey()">リセット</span>
+</div>
+
+<div class="main">
+
+  <!-- Privacy Notice -->
+  <div class="privacy-notice">
+    <h4>プライバシー・セキュリティ</h4>
+    <ul>
+      <li>取り込んだデータ・QRコードは24時間で自動消去</li>
+      <li>AIはこのデータを学習に使用しません（API利用規約による）</li>
+      <li>患者氏名・IDは入力しないでください</li>
+      <li>カルテ端末への接続・改変は一切ありません</li>
+    </ul>
+  </div>
+
+  <!-- Main section -->
+  <div class="section-main" id="section-main">
+
+    <!-- Mode tabs -->
+    <div class="mode-tabs">
+      <div class="mode-tab active" id="tab-audio" onclick="setMode('audio')">
+        <span class="mode-icon">🎙</span>
+        音声入力
+      </div>
+      <div class="mode-tab" id="tab-image" onclick="setMode('image')">
+        <span class="mode-icon">📷</span>
+        画像入力
+      </div>
+    </div>
+
+    <!-- Upload -->
+    <div class="card">
+      <div class="card-label">ファイルを選択</div>
+      <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
+        <div class="upload-icon" id="upload-icon">📂</div>
+        <div class="upload-text" id="upload-text">タップしてファイルを選択</div>
+        <div class="upload-sub" id="upload-sub">音声：m4a / mp3 / wav　画像：jpg / png / heic</div>
+        <div class="upload-filename" id="upload-filename"></div>
+      </div>
+      <input type="file" id="file-input" accept="audio/*,image/*" onchange="handleFile(event)">
+    </div>
+
+    <!-- Template -->
+    <div class="card">
+      <div class="card-label">出力テンプレート</div>
+      <select class="template-select" id="template-select">
+        <option value="ic">IC記録（病状説明）</option>
+        <option value="referral_in">紹介状受け取り → カルテ記載</option>
+        <option value="referral_out">カルテ内容 → 紹介状作成</option>
+        <option value="soap">SOAP記録（診察）</option>
+        <option value="nursing_summary">看護サマリ</option>
+        <option value="discharge_summary">退院時サマリ</option>
+      </select>
+    </div>
+
+    <!-- Run -->
+    <button class="btn-run" id="btn-run" onclick="runAI()">
+      <div class="spinner"></div>
+      <span class="btn-label">▶ AI処理を開始</span>
+    </button>
+
+    <!-- Error -->
+    <div class="error-box" id="error-box"></div>
+
+    <!-- Result -->
+    <div class="card result-card" id="result-card">
+      <div class="result-header">
+        <div class="card-label" style="margin:0">AI出力結果</div>
+        <span class="result-badge">完了</span>
+      </div>
+      <div class="result-text" id="result-text"></div>
+      <div class="action-row">
+        <button class="btn-action primary" onclick="generateQR()">QRコードを生成</button>
+        <button class="btn-action" id="btn-copy" onclick="copyText()">テキストをコピー</button>
+      </div>
+    </div>
+
+    <!-- QR -->
+    <div class="card qr-section" id="qr-section">
+      <div class="card-label">QRコード</div>
+      <div class="qr-box">
+        <div id="qr-canvas"></div>
+        <div class="qr-instruction">カルテ端末のカメラアプリをQRコードに向けると<br>テキストが自動入力されます</div>
+        <div class="qr-timer" id="qr-timer"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- History section -->
+  <div class="history-section" id="section-history">
+    <div style="margin:14px 0 10px;font-weight:700;font-size:14px;">処理履歴</div>
+    <div id="history-list"></div>
+  </div>
+
+</div>
+
+<!-- Bottom nav -->
+<div class="bottom-nav">
+  <div class="nav-item active" id="nav-main" onclick="showSection('main')">
+    <span class="nav-icon">⊕</span>変換
+  </div>
+  <div class="nav-item" id="nav-history" onclick="showSection('history')">
+    <span class="nav-icon">☰</span>履歴
+  </div>
+  <div class="nav-item" id="nav-help" onclick="showSection('help')">
+    <span class="nav-icon">?</span>ヘルプ
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'medical_ai_history';
+const API_KEY_STORAGE = 'medical_ai_apikey';
+const EXPIRY_HOURS = 24;
+
+const TEMPLATES = {
+  ic: {
+    label: 'IC記録（病状説明）',
+    prompt: `以下の音声または画像から、病状説明（インフォームドコンセント）のカルテ記録を作成してください。
+患者氏名・IDは含めないでください。以下の形式で出力してください。
+
+【説明内容】
+【患者・家族の反応・質問】
+【同席者】
+【説明日時】　　年　月　日　　時　分
+【担当医師】
+【補足事項】`
+  },
+  referral_in: {
+    label: '紹介状受け取り → カルテ記載',
+    prompt: `以下の紹介状画像から、カルテ記載用の情報を抽出してください。
+患者氏名・IDは【患者情報】として空欄にしてください。以下の形式で出力してください。
+
+【紹介元医療機関】
+【紹介目的】
+【現病歴・主訴】
+【既往歴】
+【内服薬】
+【アレルギー】
+【検査結果（主なもの）】
+【紹介医のコメント】`
+  },
+  referral_out: {
+    label: 'カルテ内容 → 紹介状作成',
+    prompt: `以下のカルテ画像・メモから、紹介状の下書きを作成してください。
+患者情報欄は【患者情報】として空欄にしてください。以下の形式で出力してください。
+
+拝啓　先生御侍史
+
+【紹介目的】
+【現病歴】
+【既往歴】
+【内服薬】
+【検査所見】
+【治療経過】
+【今後の方針・お願い事項】
+
+ご高診よろしくお願い申し上げます。`
+  },
+  soap: {
+    label: 'SOAP記録（診察）',
+    prompt: `以下の音声または画像から、診察記録をSOAP形式でまとめてください。
+患者氏名・IDは含めないでください。以下の形式で出力してください。
+
+S（主観的情報）：
+O（客観的情報）：
+A（評価・アセスメント）：
+P（計画）：`
+  },
+  nursing_summary: {
+    label: '看護サマリ',
+    prompt: `以下の看護記録・音声から看護サマリを作成してください。
+患者情報は含めないでください。以下の形式で出力してください。
+
+【ADL状況】
+【医療処置・管理】
+【服薬状況】
+【コミュニケーション】
+【家族背景・社会的状況】
+【退院・転院に向けた課題】
+【申し送り事項】`
+  },
+  discharge_summary: {
+    label: '退院時サマリ',
+    prompt: `以下のカルテ画像・音声から退院時サマリを作成してください。
+患者情報は【患者情報】として空欄にしてください。以下の形式で出力してください。
+
+【入院期間】
+【入院目的・主訴】
+【入院時所見】
+【治療経過】
+【退院時状態】
+【退院処方】
+【退院後の方針】
+【外来フォロー予定】`
+  }
+};
+
+let currentMode = 'audio';
+let selectedFile = null;
+let resultText = '';
+let qrTimer = null;
+let qrExpiry = null;
+
+// API Key
+function saveApiKey() {
+  const key = document.getElementById('api-key-input').value.trim();
+  if (!key.startsWith('sk-ant-')) {
+    alert('APIキーは sk-ant- で始まる文字列です。Anthropic Consoleから正しくコピーしてください。');
+    return;
+  }
+  localStorage.setItem(API_KEY_STORAGE, key);
+  document.getElementById('api-setup').style.display = 'none';
+  document.getElementById('api-saved').style.display = 'flex';
+}
+
+function resetApiKey() {
+  if (!confirm('APIキーをリセットしますか？')) return;
+  localStorage.removeItem(API_KEY_STORAGE);
+  document.getElementById('api-key-input').value = '';
+  document.getElementById('api-setup').style.display = 'block';
+  document.getElementById('api-saved').style.display = 'none';
+}
+
+function getApiKey() {
+  return localStorage.getItem(API_KEY_STORAGE);
+}
+
+// Mode
+function setMode(mode) {
+  currentMode = mode;
+  document.getElementById('tab-audio').classList.toggle('active', mode === 'audio');
+  document.getElementById('tab-image').classList.toggle('active', mode === 'image');
+  const input = document.getElementById('file-input');
+  input.accept = mode === 'audio' ? 'audio/*' : 'image/*';
+  selectedFile = null;
+  resetUploadZone();
+}
+
+function resetUploadZone() {
+  const zone = document.getElementById('upload-zone');
+  zone.classList.remove('has-file');
+  document.getElementById('upload-icon').textContent = currentMode === 'audio' ? '🎙' : '📷';
+  document.getElementById('upload-text').textContent = 'タップしてファイルを選択';
+  document.getElementById('upload-filename').textContent = '';
+}
+
+// File
+function handleFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  selectedFile = file;
+  const zone = document.getElementById('upload-zone');
+  zone.classList.add('has-file');
+  document.getElementById('upload-icon').textContent = '✅';
+  document.getElementById('upload-text').textContent = 'ファイル選択済み';
+  document.getElementById('upload-filename').textContent = file.name;
+}
+
+// AI Processing
+async function runAI() {
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    showError('APIキーが設定されていません。上の「初回設定」からキーを入力してください。');
+    return;
+  }
+  if (!selectedFile) {
+    showError('ファイルが選択されていません。');
+    return;
+  }
+
+  const btn = document.getElementById('btn-run');
+  btn.classList.add('loading');
+  btn.disabled = true;
+  hideError();
+  document.getElementById('result-card').classList.remove('visible');
+  document.getElementById('qr-section').classList.remove('visible');
+
+  try {
+    const templateKey = document.getElementById('template-select').value;
+    const template = TEMPLATES[templateKey];
+    const base64 = await fileToBase64(selectedFile);
+    const isImage = selectedFile.type.startsWith('image/');
+    const isAudio = selectedFile.type.startsWith('audio/');
+
+    let messages;
+    if (isImage) {
+      messages = [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: selectedFile.type, data: base64 } },
+          { type: 'text', text: template.prompt }
+        ]
+      }];
+    } else if (isAudio) {
+      messages = [{
+        role: 'user',
+        content: [
+          {
+            type: 'document',
+            source: { type: 'base64', media_type: selectedFile.type, data: base64 }
+          },
+          { type: 'text', text: template.prompt }
+        ]
+      }];
+    }
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-opus-4-6',
+        max_tokens: 1500,
+        messages: messages
+      })
+    });
+
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.error?.message || `APIエラー: ${response.status}`);
+    }
+
+    const data = await response.json();
+    resultText = data.content[0].text;
+
+    document.getElementById('result-text').textContent = resultText;
+    document.getElementById('result-card').classList.add('visible');
+
+    saveHistory(template.label, resultText);
+
+  } catch (e) {
+    showError('処理中にエラーが発生しました：' + e.message);
+  } finally {
+    btn.classList.remove('loading');
+    btn.disabled = false;
+  }
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// QR
+function generateQR() {
+  const text = resultText;
+  if (!text) return;
+
+  if (text.length > 2500) {
+    showError('テキストが長すぎてQRコードに変換できません（上限約2,500文字）。テキストをコピーして分割してご使用ください。');
+    return;
+  }
+
+  const container = document.getElementById('qr-canvas');
+  container.innerHTML = '';
+
+  new QRCode(container, {
+    text: text,
+    width: 200,
+    height: 200,
+    correctLevel: QRCode.CorrectLevel.M
+  });
+
+  document.getElementById('qr-section').classList.add('visible');
+
+  qrExpiry = Date.now() + 24 * 60 * 60 * 1000;
+  updateQRTimer();
+  if (qrTimer) clearInterval(qrTimer);
+  qrTimer = setInterval(updateQRTimer, 60000);
+}
+
+function updateQRTimer() {
+  if (!qrExpiry) return;
+  const remaining = qrExpiry - Date.now();
+  if (remaining <= 0) {
+    document.getElementById('qr-canvas').innerHTML = '<div style="color:var(--gray-400);font-size:12px;padding:20px;">QRコードの有効期限が切れました</div>';
+    document.getElementById('qr-timer').textContent = '';
+    clearInterval(qrTimer);
+    return;
+  }
+  const hours = Math.floor(remaining / 3600000);
+  const minutes = Math.floor((remaining % 3600000) / 60000);
+  document.getElementById('qr-timer').textContent = `消去まで残り ${hours}時間${minutes}分`;
+}
+
+// Copy
+function copyText() {
+  navigator.clipboard.writeText(resultText).then(() => {
+    const btn = document.getElementById('btn-copy');
+    btn.textContent = 'コピー完了 ✓';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = 'テキストをコピー';
+      btn.classList.remove('copied');
+    }, 2000);
+  });
+}
+
+// Error
+function showError(msg) {
+  const box = document.getElementById('error-box');
+  box.textContent = msg;
+  box.classList.add('visible');
+}
+function hideError() {
+  document.getElementById('error-box').classList.remove('visible');
+}
+
+// History
+function saveHistory(templateLabel, text) {
+  const history = getHistory();
+  const item = {
+    id: Date.now(),
+    template: templateLabel,
+    text: text,
+    expiry: Date.now() + EXPIRY_HOURS * 3600000,
+    createdAt: new Date().toLocaleString('ja-JP')
+  };
+  history.unshift(item);
+  const cleaned = history.filter(h => h.expiry > Date.now()).slice(0, 30);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(cleaned));
+}
+
+function getHistory() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw).filter(h => h.expiry > Date.now());
+  } catch { return []; }
+}
+
+function renderHistory() {
+  const list = document.getElementById('history-list');
+  const history = getHistory();
+  if (history.length === 0) {
+    list.innerHTML = '<div class="empty-history">処理履歴はありません<br><span style="font-size:11px">変換タブでAI処理を実行すると履歴が表示されます</span></div>';
+    return;
+  }
+  list.innerHTML = history.map(item => {
+    const remaining = Math.round((item.expiry - Date.now()) / 3600000);
+    return `<div class="history-item" onclick="restoreHistory('${item.id}')">
+      <div class="history-meta">${item.createdAt} &nbsp;|&nbsp; <span class="history-expired">残り${remaining}時間で消去</span></div>
+      <div class="history-template">${item.template}</div>
+      <div class="history-preview">${item.text.replace(/\n/g,' ')}</div>
+    </div>`;
+  }).join('');
+}
+
+function restoreHistory(id) {
+  const history = getHistory();
+  const item = history.find(h => h.id == id);
+  if (!item) return;
+  resultText = item.text;
+  document.getElementById('result-text').textContent = resultText;
+  document.getElementById('result-card').classList.add('visible');
+  document.getElementById('qr-section').classList.remove('visible');
+  showSection('main');
+}
+
+// Navigation
+function showSection(name) {
+  document.getElementById('section-main').classList.toggle('hidden', name !== 'main');
+  document.getElementById('section-history').classList.toggle('visible', name === 'history');
+  document.getElementById('nav-main').classList.toggle('active', name === 'main');
+  document.getElementById('nav-history').classList.toggle('active', name === 'history');
+  document.getElementById('nav-help').classList.toggle('active', name === 'help');
+
+  if (name === 'history') renderHistory();
+}
+
+// Init
+(function init() {
+  const key = localStorage.getItem(API_KEY_STORAGE);
+  if (key) {
+    document.getElementById('api-setup').style.display = 'none';
+    document.getElementById('api-saved').style.display = 'flex';
+  }
+
+  // Cleanup expired history
+  const history = getHistory();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+
+  // 24h auto-cleanup
+  setInterval(() => {
+    const h = getHistory();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(h));
+  }, 3600000);
+})();
+</script>
+</body>
+</html>
