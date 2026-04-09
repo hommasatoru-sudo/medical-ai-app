@@ -748,162 +748,32 @@ function fileToBase64(file) {
 function generateQR() {
   const text = resultText;
   if (!text) return;
-  const CHUNK = 800;
-  const chunks = [];
-  for (let i = 0; i < text.length; i += CHUNK) {
-    chunks.push(text.slice(i, i + CHUNK));
+  if (text.length > 2500) {
+    showError('テキストが長すぎます（上限約2,500文字）。テキストをコピーして分割してご使用ください。');
+    return;
   }
   const container = document.getElementById('qr-canvas');
   container.innerHTML = '';
-  if (chunks.length > 1) {
-    const note = document.createElement('div');
-    note.style.cssText = 'font-size:11px;color:var(--blue);background:var(--blue-light);border-radius:6px;padding:8px 10px;margin-bottom:10px;text-align:center;';
-    note.textContent = `テキストが長いため ${chunks.length} 枚に分割しました。順番にカメラで読み取ってください。`;
-    container.appendChild(note);
-  }
-  chunks.forEach((chunk, idx) => {
-    const wrap = document.createElement('div');
-    wrap.style.cssText = 'text-align:center;margin-bottom:14px;';
-    if (chunks.length > 1) {
-      const label = document.createElement('div');
-      label.style.cssText = 'font-size:12px;font-weight:500;color:var(--blue);margin-bottom:6px;';
-      label.textContent = `${idx + 1} / ${chunks.length}`;
-      wrap.appendChild(label);
-    }
-    const canvas = document.createElement('canvas');
-    canvas.width = 220;
-    canvas.height = 220;
-    wrap.appendChild(canvas);
-    try {
-      drawQR(canvas, chunk);
-    } catch(e) {
-      wrap.innerHTML = '<div style="color:var(--red);font-size:12px;padding:10px;">このブロックのQR生成に失敗しました。テキストをコピーして貼り付けてください。</div>';
-    }
-    container.appendChild(wrap);
-  });
+  const canvas = document.createElement('canvas');
+  container.appendChild(canvas);
+  QRious ? renderQR(canvas, text) : loadQRious(canvas, text);
   document.getElementById('qr-section').classList.add('visible');
   qrExpiry = Date.now() + 24 * 60 * 60 * 1000;
   updateQRTimer();
   if (qrTimer) clearInterval(qrTimer);
   qrTimer = setInterval(updateQRTimer, 60000);
 }
-function drawQR(canvas, text) {
-  // QRコード生成（バイナリモード、誤り訂正レベルM）
-  const qr = createQR(text);
-  const ctx = canvas.getContext('2d');
-  const size = qr.length;
-  const cell = Math.floor(220 / (size + 8));
-  const offset = Math.floor((220 - cell * size) / 2);
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, 220, 220);
-  ctx.fillStyle = '#000000';
-  for (let r = 0; r < size; r++) {
-    for (let c = 0; c < size; c++) {
-      if (qr[r][c]) {
-        ctx.fillRect(offset + c * cell, offset + r * cell, cell, cell);
-      }
-    }
-  }
+function renderQR(canvas, text) {
+  new QRious({ element: canvas, value: text, size: 220, level: 'M' });
 }
-function createQR(text) {
-  // QRコード生成ライブラリ（最小実装・バージョン1〜10対応）
-  const encode = s => {
-    const bytes = [];
-    for (let i = 0; i < s.length; i++) {
-      const c = s.charCodeAt(i);
-      if (c < 128) bytes.push(c);
-      else if (c < 2048) { bytes.push(192|(c>>6)); bytes.push(128|(c&63)); }
-      else { bytes.push(224|(c>>12)); bytes.push(128|((c>>6)&63)); bytes.push(128|(c&63)); }
-    }
-    return bytes;
+function loadQRious(canvas, text) {
+  const s = document.createElement('script');
+  s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js';
+  s.onload = () => renderQR(canvas, text);
+  s.onerror = () => {
+    document.getElementById('qr-canvas').innerHTML = '<div style="color:var(--red);font-size:12px;padding:10px;">QR生成に失敗しました。「テキストをコピー」してカルテに貼り付けてください。</div>';
   };
-  const data = encode(text);
-  const len = data.length;
-  // バージョン選択
-  const caps = [17,32,53,78,106,134,154,192,230,271];
-  let ver = 1;
-  for (let i = 0; i < caps.length; i++) { if (caps[i] >= len + 3) { ver = i + 1; break; } }
-  if (ver > 10) throw new Error('too long');
-  const size = ver * 4 + 17;
-  const mat = Array.from({length:size}, () => new Array(size).fill(null));
-  const setBlock = (r, c, pat) => {
-    for (let i = 0; i < pat.length; i++)
-      for (let j = 0; j < pat[i].length; j++)
-        if (r+i>=0&&r+i<size&&c+j>=0&&c+j<size) mat[r+i][c+j] = pat[i][j];
-  };
-  // ファインダーパターン
-  const finder = [[1,1,1,1,1,1,1],[1,0,0,0,0,0,1],[1,0,1,1,1,0,1],[1,0,1,1,1,0,1],[1,0,1,1,1,0,1],[1,0,0,0,0,0,1],[1,1,1,1,1,1,1]];
-  setBlock(0,0,finder); setBlock(0,size-7,finder); setBlock(size-7,0,finder);
-  // セパレーター
-  for (let i=0;i<8;i++){
-    if(mat[7][i]===null)mat[7][i]=0; if(mat[i][7]===null)mat[i][7]=0;
-    if(mat[7][size-1-i]===null)mat[7][size-1-i]=0; if(mat[i][size-8]===null)mat[i][size-8]=0;
-    if(mat[size-8][i]===null)mat[size-8][i]=0; if(mat[size-1-i][7]===null)mat[size-1-i][7]=0;
-  }
-  // タイミングパターン
-  for (let i=8;i<size-8;i++){
-    if(mat[6][i]===null)mat[6][i]=i%2===0?1:0;
-    if(mat[i][6]===null)mat[i][6]=i%2===0?1:0;
-  }
-  // ダークモジュール
-  mat[size-8][8]=1;
-  // フォーマット情報領域を予約
-  for(let i=0;i<9;i++){if(mat[8][i]===null)mat[8][i]=0;if(mat[i][8]===null)mat[i][8]=0;}
-  for(let i=size-8;i<size;i++){if(mat[8][i]===null)mat[8][i]=0;if(mat[i][8]===null)mat[i][8]=0;}
-  // アライメントパターン（バージョン2以上）
-  if (ver >= 2) {
-    const apos = {2:[6,18],3:[6,22],4:[6,26],5:[6,30],6:[6,34],7:[6,22,38],8:[6,24,42],9:[6,26,46],10:[6,28,50]};
-    const pos = apos[ver]||[];
-    const apat = [[1,1,1,1,1],[1,0,0,0,1],[1,0,1,0,1],[1,0,0,0,1],[1,1,1,1,1]];
-    for (const r of pos) for (const c of pos) if (mat[r][c]===null) setBlock(r-2,c-2,apat);
-  }
-  // データビット構築
-  const bits = [];
-  // モード（バイト=0100）
-  bits.push(0,1,0,0);
-  // 文字数
-  for(let i=7;i>=0;i--) bits.push((len>>i)&1);
-  // データ
-  for(const b of data) for(let i=7;i>=0;i--) bits.push((b>>i)&1);
-  // ターミネーター
-  for(let i=0;i<4&&bits.length<caps[ver-1]*8;i++) bits.push(0);
-  while(bits.length%8!==0) bits.push(0);
-  // パディング
-  const pads=[0xEC,0x11];let pi=0;
-  while(bits.length<caps[ver-1]*8){for(let i=7;i>=0;i--)bits.push((pads[pi%2]>>i)&1);pi++;}
-  // バイト列
-  const bytes=[];
-  for(let i=0;i<bits.length;i+=8){let b=0;for(let j=0;j<8;j++)b=(b<<1)|bits[i+j];bytes.push(b);}
-  // RSエラー訂正（簡略版）
-  const rsGen = {1:[0,25,1],2:[0,25,1,0,0,0,0,0,0,0],5:[0,71,100,146,36,100,88,20],7:[0,87,229,146,149,238,102,21],10:[0,251,67,46,61,118,70,64,94,32,45]};
-  const ecCount = {1:[7,0],2:[10,0],3:[15,0],4:[20,0],5:[26,0],6:[18,0],7:[20,0],8:[24,0],9:[30,0],10:[18,2]};
-  // データをマトリクスに配置
-  let bi = 0;
-  const allBytes = bytes;
-  let up = true;
-  for(let col=size-1;col>=1;col-=2){
-    if(col===6) col=5;
-    for(let row=0;row<size;row++){
-      const r=up?size-1-row:row;
-      for(let dc=0;dc<2;dc++){
-        const c=col-dc;
-        if(mat[r][c]===null){
-          mat[r][c]=bi<allBytes.length*8?(allBytes[Math.floor(bi/8)]>>(7-bi%8))&1:0;
-          bi++;
-        }
-      }
-    }
-    up=!up;
-  }
-  // マスクパターン0適用（i+j が偶数のセルを反転）
-  for(let r=0;r<size;r++)
-    for(let c=0;c<size;c++)
-      if(mat[r][c]!==null&&mat[r][c]!==0&&mat[r][c]!==1) mat[r][c]=0;
-  // マスク適用
-  for(let r=0;r<size;r++)
-    for(let c=0;c<size;c++)
-      if(mat[r][c]!==null&&(r+c)%2===0) mat[r][c]^=1;
-  return mat;
+  document.head.appendChild(s);
 }
 function updateQRTimer() {
   if (!qrExpiry) return;
