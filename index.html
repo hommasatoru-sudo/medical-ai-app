@@ -456,9 +456,9 @@
 
     <!-- Mode tabs -->
     <div class="mode-tabs">
-      <div class="mode-tab active" id="tab-audio" onclick="setMode('audio')">
+      <div class="mode-tab active" id="tab-text" onclick="setMode('text')">
         <span class="mode-icon">🎙</span>
-        音声入力
+        音声→テキスト入力
       </div>
       <div class="mode-tab" id="tab-image" onclick="setMode('image')">
         <span class="mode-icon">📷</span>
@@ -466,16 +466,31 @@
       </div>
     </div>
 
-    <!-- Upload -->
-    <div class="card">
-      <div class="card-label">ファイルを選択</div>
-      <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
-        <div class="upload-icon" id="upload-icon">📂</div>
-        <div class="upload-text" id="upload-text">タップしてファイルを選択</div>
-        <div class="upload-sub" id="upload-sub">音声：m4a / mp3 / wav　画像：jpg / png / heic</div>
-        <div class="upload-filename" id="upload-filename"></div>
+    <!-- Text input mode -->
+    <div id="text-input-area">
+      <div class="card">
+        <div class="card-label">音声入力の使い方</div>
+        <div style="font-size:11px;color:var(--gray-600);line-height:1.7;margin-bottom:10px;">
+          ① iPhoneキーボードのマイクアイコンをタップして音声入力<br>
+          ② または録音内容をテキストで直接入力<br>
+          ③ 患者氏名・IDは入力しないでください
+        </div>
+        <textarea id="text-input" placeholder="ここに音声入力またはテキストを貼り付けてください..." style="width:100%;min-height:120px;border:1.5px solid var(--gray-200);border-radius:var(--radius-sm);padding:10px 12px;font-size:13px;font-family:'Noto Sans JP',sans-serif;color:var(--gray-800);resize:vertical;outline:none;line-height:1.7;"></textarea>
       </div>
-      <input type="file" id="file-input" accept="audio/*,image/*" onchange="handleFile(event)">
+    </div>
+
+    <!-- Image input mode -->
+    <div id="image-input-area" style="display:none;">
+      <div class="card">
+        <div class="card-label">画像を選択</div>
+        <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
+          <div class="upload-icon" id="upload-icon">📷</div>
+          <div class="upload-text" id="upload-text">タップして画像を選択またはカメラで撮影</div>
+          <div class="upload-sub" id="upload-sub">jpg / png / heic 対応</div>
+          <div class="upload-filename" id="upload-filename"></div>
+        </div>
+        <input type="file" id="file-input" accept="image/*" capture="environment" onchange="handleFile(event)">
+      </div>
     </div>
 
     <!-- Template -->
@@ -634,7 +649,7 @@ P（計画）：`
   }
 };
 
-let currentMode = 'audio';
+let currentMode = 'text';
 let selectedFile = null;
 let resultText = '';
 let qrTimer = null;
@@ -667,12 +682,12 @@ function getApiKey() {
 // Mode
 function setMode(mode) {
   currentMode = mode;
-  document.getElementById('tab-audio').classList.toggle('active', mode === 'audio');
+  document.getElementById('tab-text').classList.toggle('active', mode === 'text');
   document.getElementById('tab-image').classList.toggle('active', mode === 'image');
-  const input = document.getElementById('file-input');
-  input.accept = mode === 'audio' ? 'audio/*' : 'image/*';
+  document.getElementById('text-input-area').style.display = mode === 'text' ? 'block' : 'none';
+  document.getElementById('image-input-area').style.display = mode === 'image' ? 'block' : 'none';
   selectedFile = null;
-  resetUploadZone();
+  if (mode === 'image') resetUploadZone();
 }
 
 function resetUploadZone() {
@@ -702,8 +717,8 @@ async function runAI() {
     showError('APIキーが設定されていません。上の「初回設定」からキーを入力してください。');
     return;
   }
-  if (!selectedFile) {
-    showError('ファイルが選択されていません。');
+  if (!selectedFile && currentMode === 'image') {
+    showError('画像が選択されていません。');
     return;
   }
 
@@ -717,28 +732,36 @@ async function runAI() {
   try {
     const templateKey = document.getElementById('template-select').value;
     const template = TEMPLATES[templateKey];
-    const base64 = await fileToBase64(selectedFile);
-    const isImage = selectedFile.type.startsWith('image/');
-    const isAudio = selectedFile.type.startsWith('audio/');
 
     let messages;
-    if (isImage) {
+    if (currentMode === 'image') {
+      if (!selectedFile) {
+        showError('画像が選択されていません。');
+        btn.classList.remove('loading');
+        btn.disabled = false;
+        return;
+      }
+      const base64 = await fileToBase64(selectedFile);
+      const mediaType = selectedFile.type || 'image/jpeg';
       messages = [{
         role: 'user',
         content: [
-          { type: 'image', source: { type: 'base64', media_type: selectedFile.type, data: base64 } },
+          { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
           { type: 'text', text: template.prompt }
         ]
       }];
-    } else if (isAudio) {
+    } else {
+      const inputText = document.getElementById('text-input').value.trim();
+      if (!inputText) {
+        showError('テキストが入力されていません。音声入力またはテキストを入力してください。');
+        btn.classList.remove('loading');
+        btn.disabled = false;
+        return;
+      }
       messages = [{
         role: 'user',
         content: [
-          {
-            type: 'document',
-            source: { type: 'base64', media_type: selectedFile.type, data: base64 }
-          },
-          { type: 'text', text: template.prompt }
+          { type: 'text', text: template.prompt + '\n\n---入力内容---\n' + inputText }
         ]
       }];
     }
